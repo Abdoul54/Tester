@@ -26,7 +26,7 @@ class RegisterRequest extends FormRequest
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8|confirmed',
             'password_confirmation' => 'required|string|min:8',
-            'role' => 'required|in:admin,user', // Ensure role is either admin or user
+            'role' => 'nullable|in:admin,user', // Ensure role is either admin or user
             'phone' => 'nullable|string|max:15',
             'avatar' => 'nullable|image|max:2048', // Optional avatar field, max size 2MB
         ];

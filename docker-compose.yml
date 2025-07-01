@@ -165,6 +165,28 @@ services:
                 - ping
             retries: 3
             timeout: 5s
+    nextjs:
+        build:
+            context: ../tester-next
+            dockerfile: Dockerfile
+        image: tester-nextjs
+        ports:
+            - '${NEXTJS_PORT:-3000}:3000'
+        volumes:
+            - '../tester-next:/app'
+            - '/app/node_modules'
+            - '/app/.next'  # Prevent .next directory override
+        networks:
+            - sail
+        environment:
+            - NODE_ENV=development
+            - NEXT_PUBLIC_API_URL=http://localhost:${APP_PORT:-80}/api
+            - NEXT_PUBLIC_APP_URL=http://localhost:${APP_PORT:-80}
+            - WATCHPACK_POLLING=true  # Enable file watching in Docker
+        depends_on:
+            - laravel.test
+        command: npm run dev
+        restart: unless-stopped
 
 networks:
     sail:

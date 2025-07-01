@@ -7,7 +7,7 @@ use App\Http\Requests\Auth\RegisterRequest;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Knuckles\Scribe\Attributes\Group;
@@ -55,26 +55,22 @@ class AuthController extends Controller
                 }
             }
 
+            $password = Hash::make($request->password); // Hash the password
+
             // Wrap user creation and token generation in a database transaction
-            $result = DB::transaction(function () use ($request, $avatarPath) {
+            $user = DB::transaction(function () use ($request, $avatarPath, $password) {
                 // Create a new user instance
                 $user = User::create([
                     'name' => $request->name,
                     'email' => $request->email,
-                    'password' => bcrypt($request->password),
+                    'password' => $password,
                     'phone' => $request->phone,
                     'avatar' => $avatarPath, // Store the file path
                 ]);
 
-                $user->assignRole($request->role); // Assign role to the user
+                $user->assignRole($request->role ?? 'user'); // Assign role to the user
 
-                // Generate token using Sanctum (if this fails, user creation will be rolled back)
-                $token = $user->createToken('auth-token')->plainTextToken;
-
-                return [
-                    'user' => $user,
-                    'token' => $token
-                ];
+                return  $user;
             });
 
 
@@ -82,13 +78,16 @@ class AuthController extends Controller
             $responseData = [
                 'message' => 'Registration successful',
                 'user' => [
-                    'id' => $result['user']->id,
-                    'name' => $result['user']->name,
-                    'email' => $result['user']->email,
-                    'phone' => $result['user']->phone,
-                    'avatar_url' => $avatarPath ? $this->getAvatarUrl($avatarPath) : null,
-                ],
-                'token' => $result['token'] // Include the token in the response
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'phone' => $user->phone,
+                    'email_verified' => $user->hasVerifiedEmail(),
+                    'role' => $user->getRole(),
+                    'avatar_url' => $avatarPath ? $user->getAvatarUrl($avatarPath) : null,
+                    'created_at' => $user->created_at->toIso8601String(),
+                    'updated_at' => $user->updated_at->toIso8601String(),
+                ]
             ];
 
             return response()->json($responseData, 201);
@@ -129,7 +128,7 @@ class AuthController extends Controller
                         'email' => $user->email,
                         'email_verified' => $user->hasVerifiedEmail(),
                         'phone' => $user->phone,
-                        'avatar' => $this->getAvatarUrl($user->avatar),
+                        'avatar' => $user->getAvatarUrl($user->avatar),
                         'role' => $user->getRole(),
                         'created_at' => $user->created_at->toIso8601String(),
                         'updated_at' => $user->updated_at->toIso8601String(),
@@ -141,34 +140,6 @@ class AuthController extends Controller
             return response()->json(['message' => 'Invalid credentials'], 401);
         } catch (\Throwable $th) {
             return response()->json(['message' => 'Login failed', 'error' => $th->getMessage()], 500);
-        }
-    }
-
-    /**
-     * Get the full URL for an avatar - optimized for MinIO
-     */
-    private function getAvatarUrl($avatarPath)
-    {
-        if (!$avatarPath) {
-            return null;
-        }
-
-        try {
-            // For MinIO in development, construct the public URL manually
-            // Since your bucket is set to public, we can use direct URLs
-            $baseUrl = config('filesystems.disks.s3.url');
-            $bucket = config('filesystems.disks.s3.bucket');
-
-            // Construct the public URL
-            return $baseUrl . '/' . $bucket . '/' . $avatarPath;
-
-            // Alternative: Use pre-signed URLs (works even if bucket is not public)
-            // return Storage::disk('s3')->temporaryUrl($avatarPath, now()->addHours(24));
-
-        } catch (\Exception $e) {
-            // Fallback: return null if URL generation fails
-            Log::error('Avatar URL generation failed: ' . $e->getMessage());
-            return null;
         }
     }
 }

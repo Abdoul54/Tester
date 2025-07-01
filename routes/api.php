@@ -29,4 +29,12 @@ Route::middleware('auth:sanctum')->group(function () {
 // Routes requiring authentication AND email verification
 Route::middleware(['auth:sanctum', 'verified.email'])->group(function () {
     Route::get('/profile', [UserController::class, 'profile']);
+    Route::group(['prefix' => 'posts'], function () {
+        Route::get('/', [PostController::class, 'index']);
+        Route::post('/', [PostController::class, 'store']);
+        Route::get('/{id}', [PostController::class, 'show']);
+        Route::put('/{id}', [PostController::class, 'update']);
+        Route::delete('/{id}', [PostController::class, 'destroy']);
+        Route::put('/{id}/publishOrArchive', [PostController::class, 'publishOrArchive']);
+    });
 });
